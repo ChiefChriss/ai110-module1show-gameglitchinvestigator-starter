@@ -40,7 +40,9 @@ if "secret" not in st.session_state:
     st.session_state.secret = random.randint(low, high)
 
 if "attempts" not in st.session_state:
-    st.session_state.attempts = 1
+    # FIX: Start at 0, not 1. The limit check runs after the increment, so starting
+    # at 1 only allowed (limit - 1) guesses and showed "Attempts left" one too low.
+    st.session_state.attempts = 0
 
 if "score" not in st.session_state:
     st.session_state.score = 0
@@ -54,7 +56,7 @@ if "history" not in st.session_state:
 st.subheader("Make a guess")
 
 st.info(
-    f"Guess a number between 1 and 100. "
+    f"Guess a number between {low} and {high}. "
     f"Attempts left: {attempt_limit - st.session_state.attempts}"
 )
 
@@ -82,7 +84,7 @@ if new_game:
     # FIX: Copilot flagged that the original reset only touched attempts/secret, so a
     # finished game stayed "won"/"lost". Working with it, I made the reset clear every
     # piece of state and use the current [low, high] instead of a hardcoded randint(1, 100).
-    st.session_state.attempts = 1
+    st.session_state.attempts = 0
     st.session_state.secret = random.randint(low, high)
     st.session_state.score = 0
     st.session_state.status = "playing"

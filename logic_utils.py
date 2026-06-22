@@ -65,12 +65,10 @@ def update_score(current_score: int, outcome: str, attempt_number: int):
             points = 10
         return current_score + points
 
-    if outcome == "Too High":
-        if attempt_number % 2 == 0:
-            return current_score + 5
-        return current_score - 5
-
-    if outcome == "Too Low":
+    # FIX: A wrong guess always costs the same. The old "Too High" branch awarded
+    # +5 on even attempts (attempt_number % 2 == 0), letting players farm points by
+    # repeatedly guessing too high — and it was asymmetric with "Too Low".
+    if outcome in ("Too High", "Too Low"):
         return current_score - 5
 
     return current_score
