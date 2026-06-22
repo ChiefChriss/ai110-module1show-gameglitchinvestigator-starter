@@ -1,68 +1,15 @@
 import random
 import streamlit as st
 
-def get_range_for_difficulty(difficulty: str):
-    if difficulty == "Easy":
-        return 1, 20
-    if difficulty == "Normal":
-        return 1, 100
-    if difficulty == "Hard":
-        return 1, 50
-    return 1, 100
-
-
-def parse_guess(raw: str):
-    if raw is None:
-        return False, None, "Enter a guess."
-
-    if raw == "":
-        return False, None, "Enter a guess."
-
-    try:
-        if "." in raw:
-            value = int(float(raw))
-        else:
-            value = int(raw)
-    except Exception:
-        return False, None, "That is not a number."
-
-    return True, value, None
-
-
-def check_guess(guess, secret):
-    if guess == secret:
-        return "Win", "🎉 Correct!"
-
-    try:
-        if guess > secret:
-            return "Too High", "📈 Go HIGHER!"
-        else:
-            return "Too Low", "📉 Go LOWER!"
-    except TypeError:
-        g = str(guess)
-        if g == secret:
-            return "Win", "🎉 Correct!"
-        if g > secret:
-            return "Too High", "📈 Go HIGHER!"
-        return "Too Low", "📉 Go LOWER!"
-
-
-def update_score(current_score: int, outcome: str, attempt_number: int):
-    if outcome == "Win":
-        points = 100 - 10 * (attempt_number + 1)
-        if points < 10:
-            points = 10
-        return current_score + points
-
-    if outcome == "Too High":
-        if attempt_number % 2 == 0:
-            return current_score + 5
-        return current_score - 5
-
-    if outcome == "Too Low":
-        return current_score - 5
-
-    return current_score
+# FIX: Refactored the game-logic helpers out of app.py into logic_utils.py using
+# Copilot (agent mode); I reviewed each function and kept only the clean versions.
+from logic_utils import (
+    HINT_MESSAGES,
+    check_guess,
+    get_range_for_difficulty,
+    parse_guess,
+    update_score,
+)
 
 st.set_page_config(page_title="Glitchy Guesser", page_icon="🎮")
 
@@ -132,8 +79,14 @@ with col3:
     show_hint = st.checkbox("Show hint", value=True)
 
 if new_game:
-    st.session_state.attempts = 0
-    st.session_state.secret = random.randint(1, 100)
+    # FIX: Copilot flagged that the original reset only touched attempts/secret, so a
+    # finished game stayed "won"/"lost". Working with it, I made the reset clear every
+    # piece of state and use the current [low, high] instead of a hardcoded randint(1, 100).
+    st.session_state.attempts = 1
+    st.session_state.secret = random.randint(low, high)
+    st.session_state.score = 0
+    st.session_state.status = "playing"
+    st.session_state.history = []
     st.success("New game started.")
     st.rerun()
 
@@ -153,17 +106,24 @@ if submit:
         st.session_state.history.append(raw_guess)
         st.error(err)
     else:
+        # FIX: A pytest case Copilot helped me write proved out-of-range guesses were
+        # accepted (e.g. 150 returned "Too High"). I added this bounds check so a guess
+        # is validated against the difficulty's [low, high] range before scoring.
+        if guess_int < low or guess_int > high:
+            st.session_state.history.append(guess_int)
+            st.error(f"Guess must be between {low} and {high}.")
+            st.stop()
+
         st.session_state.history.append(guess_int)
 
-        if st.session_state.attempts % 2 == 0:
-            secret = str(st.session_state.secret)
-        else:
-            secret = st.session_state.secret
-
-        outcome, message = check_guess(guess_int, secret)
+        # FIX: Original code converted the secret to a str on even attempts, which broke
+        # the hint. Copilot first suggested "handling" it with try/except (misleading —
+        # see reflection.md); the real fix was to compare against the int secret directly
+        # and look up the hint from HINT_MESSAGES.
+        outcome = check_guess(guess_int, st.session_state.secret)
 
         if show_hint:
-            st.warning(message)
+            st.warning(HINT_MESSAGES[outcome])
 
         st.session_state.score = update_score(
             current_score=st.session_state.score,
